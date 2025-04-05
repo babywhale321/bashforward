@@ -1,4 +1,4 @@
-# easy-port-forwarding
+# bashforward
 
 ## Example use cases
 Port forwarding a wireguard client that has a webserver to the wireguard server so then it can be reached from the internet
