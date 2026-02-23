@@ -3,6 +3,8 @@
 # https://github.com/Nyr/wireguard-install
 #
 # Copyright (c) 2020 Nyr. Released under the MIT License.
+#
+# Edited by babywhale for bashforward
 
 
 # Detect Debian users running the script with "sh" instead of bash
@@ -65,40 +67,46 @@ if ! grep -q sbin <<< "$PATH"; then
 	exit
 fi
 
-# Detect if BoringTun (userspace WireGuard) needs to be used
-if ! systemd-detect-virt -cq; then
-	# Not running inside a container
-	use_boringtun="0"
-elif grep -q '^wireguard ' /proc/modules; then
-	# Running inside a container, but the wireguard kernel module is available
-	use_boringtun="0"
-else
-	# Running inside a container and the wireguard kernel module is not available
-	use_boringtun="1"
-fi
-
 if [[ "$EUID" -ne 0 ]]; then
 	echo "This installer needs to be run with superuser privileges."
 	exit
 fi
 
-if [[ "$use_boringtun" -eq 1 ]]; then
-	if [ "$(uname -m)" != "x86_64" ]; then
-		echo "In containerized systems without the wireguard kernel module, this installer
-supports only the x86_64 architecture.
-The system runs on $(uname -m) and is unsupported."
-		exit
-	fi
-	# TUN device is required to use BoringTun
-	if [[ ! -e /dev/net/tun ]] || ! ( exec 7<>/dev/net/tun ) 2>/dev/null; then
-		echo "The system does not have the TUN device available.
-TUN needs to be enabled before running this installer."
-		exit
-	fi
-fi
-
 # Store the absolute path of the directory where the script is located
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# SQLite database path
+DB="bashforward.db"
+
+# Function to initialize the database
+init_db() {
+	sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS clients (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT UNIQUE NOT NULL,
+		public_key TEXT NOT NULL,
+		preshared_key TEXT NOT NULL,
+		ipv4_octet INTEGER NOT NULL UNIQUE,
+		dns TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);"
+	chmod 600 "$DB"
+}
+
+# Find the smallest free IPv4 octet (2-254) using the database
+find_free_octet() {
+	local octet=2
+	while true; do
+		if [[ $octet -ge 255 ]]; then
+			echo "253 clients are already configured. The WireGuard internal subnet is full!" >&2
+			exit 1
+		fi
+		if ! sqlite3 "$DB" "SELECT 1 FROM clients WHERE ipv4_octet = $octet;" | grep -q 1; then
+			echo $octet
+			return
+		fi
+		((octet++))
+	done
+}
 
 new_client_dns () {
 	echo "Select a DNS server for the client:"
@@ -173,19 +181,16 @@ new_client_dns () {
 }
 
 new_client_setup () {
-	# Given a list of the assigned internal IPv4 addresses, obtain the lowest still
-	# available octet. Important to start looking at 2, because 1 is our gateway.
-	octet=2
-	while grep AllowedIPs /etc/wireguard/wg0.conf | cut -d "." -f 4 | cut -d "/" -f 1 | grep -q "^$octet$"; do
-		(( octet++ ))
-	done
-	# Don't break the WireGuard configuration in case the address space is full
-	if [[ "$octet" -eq 255 ]]; then
-		echo "253 clients are already configured. The WireGuard internal subnet is full!"
-		exit
-	fi
+	# Get next free octet from database
+	octet=$(find_free_octet)
+
 	key=$(wg genkey)
 	psk=$(wg genpsk)
+
+	# Insert client into database
+	dns_escaped="${dns//\'/\'\'}"
+	sqlite3 "$DB" "INSERT INTO clients (name, public_key, preshared_key, ipv4_octet, dns) VALUES ('$client', '$(wg pubkey <<< $key)', '$psk', $octet, '$dns_escaped');"
+
 	# Configure client in the server
 	cat << EOF >> /etc/wireguard/wg0.conf
 # BEGIN_PEER $client
@@ -195,6 +200,7 @@ PresharedKey = $psk
 AllowedIPs = 10.7.0.$octet/32$(grep -q 'fddd:2c4:2c4:2c4::1' /etc/wireguard/wg0.conf && echo ", fddd:2c4:2c4:2c4::$octet/128")
 # END_PEER $client
 EOF
+
 	# Create client configuration
 	cat << EOF > "$script_dir"/"$client".conf
 [Interface]
@@ -218,6 +224,17 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		read -n1 -r -p "Press any key to install Wget and continue..."
 		apt-get update
 		apt-get install -y wget
+	fi
+
+	# Ensure sqlite3 is available
+	if ! hash sqlite3 2>/dev/null; then
+		echo "SQLite3 is required for client management. Installing..."
+		if [[ "$os" == "debian" || "$os" == "ubuntu" ]]; then
+			apt-get update
+			apt-get install -y sqlite3
+		elif [[ "$os" == "centos" || "$os" == "fedora" ]]; then
+			dnf install -y sqlite
+		fi
 	fi
 	
 	echo 'Welcome to this WireGuard road warrior installer!'
@@ -285,24 +302,6 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	[[ -z "$client" ]] && client="client"
 	echo
 	new_client_dns
-	# Set up automatic updates for BoringTun if the user is fine with that
-	if [[ "$use_boringtun" -eq 1 ]]; then
-		echo
-		echo "BoringTun will be installed to set up WireGuard on the system."
-		read -p "Should automatic updates be enabled for it? [Y/n]: " boringtun_updates
-		until [[ "$boringtun_updates" =~ ^[yYnN]*$ ]]; do
-			echo "$remove: invalid selection."
-			read -p "Should automatic updates be enabled for it? [Y/n]: " boringtun_updates
-		done
-		[[ -z "$boringtun_updates" ]] && boringtun_updates="y"
-		if [[ "$boringtun_updates" =~ ^[yY]$ ]]; then
-			if [[ "$os" == "centos" || "$os" == "fedora" ]]; then
-				cron="cronie"
-			elif [[ "$os" == "debian" || "$os" == "ubuntu" ]]; then
-				cron="cron"
-			fi
-		fi
-	fi
 	echo
 	echo "WireGuard installation is ready to begin."
 	# Install a firewall if firewalld or iptables are not already available
@@ -319,58 +318,22 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	fi
 	read -n1 -r -p "Press any key to continue..."
 	# Install WireGuard
-	# If BoringTun is not required, set up with the WireGuard kernel module
-	if [[ "$use_boringtun" -eq 0 ]]; then
-		if [[ "$os" == "ubuntu" ]]; then
-			# Ubuntu
-			apt-get update
-			apt-get install -y wireguard qrencode $firewall
-		elif [[ "$os" == "debian" ]]; then
-			# Debian
-			apt-get update
-			apt-get install -y wireguard qrencode $firewall
-		elif [[ "$os" == "centos" ]]; then
-			# CentOS
-			dnf install -y epel-release
-			dnf install -y wireguard-tools qrencode $firewall
-		elif [[ "$os" == "fedora" ]]; then
-			# Fedora
-			dnf install -y wireguard-tools qrencode $firewall
-			mkdir -p /etc/wireguard/
-		fi
-	# Else, BoringTun needs to be used
-	else
-		# Install required packages
-		if [[ "$os" == "ubuntu" ]]; then
-			# Ubuntu
-			apt-get update
-			apt-get install -y qrencode ca-certificates $cron $firewall
-			apt-get install -y wireguard-tools --no-install-recommends
-		elif [[ "$os" == "debian" ]]; then
-			# Debian
-			apt-get update
-			apt-get install -y qrencode ca-certificates $cron $firewall
-			apt-get install -y wireguard-tools --no-install-recommends
-		elif [[ "$os" == "centos" ]]; then
-			# CentOS
-			dnf install -y epel-release
-			dnf install -y wireguard-tools qrencode ca-certificates tar $cron $firewall
-		elif [[ "$os" == "fedora" ]]; then
-			# Fedora
-			dnf install -y wireguard-tools qrencode ca-certificates tar $cron $firewall
-			mkdir -p /etc/wireguard/
-		fi
-		# Grab the BoringTun binary using wget or curl and extract into the right place.
-		# Don't use this service elsewhere without permission! Contact me before you do!
-		{ wget -qO- https://wg.nyr.be/1/latest/download 2>/dev/null || curl -sL https://wg.nyr.be/1/latest/download ; } | tar xz -C /usr/local/sbin/ --wildcards 'boringtun-*/boringtun' --strip-components 1
-		# Configure wg-quick to use BoringTun
-		mkdir /etc/systemd/system/wg-quick@wg0.service.d/ 2>/dev/null
-		echo "[Service]
-Environment=WG_QUICK_USERSPACE_IMPLEMENTATION=boringtun
-Environment=WG_SUDO=1" > /etc/systemd/system/wg-quick@wg0.service.d/boringtun.conf
-		if [[ -n "$cron" ]] && [[ "$os" == "centos" || "$os" == "fedora" ]]; then
-			systemctl enable --now crond.service
-		fi
+	if [[ "$os" == "ubuntu" ]]; then
+		# Ubuntu
+		apt-get update
+		apt-get install -y wireguard qrencode sqlite3 $firewall
+	elif [[ "$os" == "debian" ]]; then
+		# Debian
+		apt-get update
+		apt-get install -y wireguard qrencode sqlite3 $firewall
+	elif [[ "$os" == "centos" ]]; then
+		# CentOS
+		dnf install -y epel-release
+		dnf install -y wireguard-tools qrencode sqlite $firewall
+	elif [[ "$os" == "fedora" ]]; then
+		# Fedora
+		dnf install -y wireguard-tools qrencode sqlite $firewall
+		mkdir -p /etc/wireguard/
 	fi
 	# If firewalld was just installed, enable it
 	if [[ "$firewall" == "firewalld" ]]; then
@@ -451,44 +414,15 @@ ExecStop=$ip6tables_path -w 5 -D FORWARD -m state --state RELATED,ESTABLISHED -j
 WantedBy=multi-user.target" >> /etc/systemd/system/wg-iptables.service
 		systemctl enable --now wg-iptables.service
 	fi
+
+	# Initialize database
+	init_db
+
 	# Generates the custom client.conf
 	new_client_setup
+
 	# Enable and start the wg-quick service
 	systemctl enable --now wg-quick@wg0.service
-	# Set up automatic updates for BoringTun if the user wanted to
-	if [[ "$boringtun_updates" =~ ^[yY]$ ]]; then
-		# Deploy upgrade script
-		cat << 'EOF' > /usr/local/sbin/boringtun-upgrade
-#!/bin/bash
-latest=$(wget -qO- https://wg.nyr.be/1/latest 2>/dev/null || curl -sL https://wg.nyr.be/1/latest 2>/dev/null)
-# If server did not provide an appropriate response, exit
-if ! head -1 <<< "$latest" | grep -qiE "^boringtun.+[0-9]+\.[0-9]+.*$"; then
-	echo "Update server unavailable"
-	exit
-fi
-current=$(/usr/local/sbin/boringtun -V)
-if [[ "$current" != "$latest" ]]; then
-	download="https://wg.nyr.be/1/latest/download"
-	xdir=$(mktemp -d)
-	# If download and extraction are successful, upgrade the boringtun binary
-	if { wget -qO- "$download" 2>/dev/null || curl -sL "$download" ; } | tar xz -C "$xdir" --wildcards "boringtun-*/boringtun" --strip-components 1; then
-		systemctl stop wg-quick@wg0.service
-		rm -f /usr/local/sbin/boringtun
-		mv "$xdir"/boringtun /usr/local/sbin/boringtun
-		systemctl start wg-quick@wg0.service
-		echo "Successfully updated to $(/usr/local/sbin/boringtun -V)"
-	else
-		echo "boringtun update failed"
-	fi
-	rm -rf "$xdir"
-else
-	echo "$current is up to date"
-fi
-EOF
-		chmod +x /usr/local/sbin/boringtun-upgrade
-		# Add cron job to run the updater daily at a random time between 3:00 and 5:59
-		{ crontab -l 2>/dev/null; echo "$(( $RANDOM % 60 )) $(( $RANDOM % 3 + 3 )) * * * /usr/local/sbin/boringtun-upgrade &>/dev/null" ; } | crontab -
-	fi
 	echo
 	qrencode -t ANSI256UTF8 < "$script_dir"/"$client.conf"
 	echo -e '\xE2\x86\x91 That is a QR code containing the client configuration.'
@@ -498,24 +432,39 @@ EOF
 	echo "The client configuration is available in:" "$script_dir"/"$client.conf"
 	echo "New clients can be added by running this script again."
 else
-	
+	# WireGuard is already installed. Ensure sqlite3 is available.
+	if ! hash sqlite3 2>/dev/null; then
+		echo "SQLite3 is required for client management. Please install it and re-run."
+		exit 1
+	fi
+
+	# Initialize database if needed
+	init_db
+
 	echo "WireGuard is already installed."
 	echo
 	echo "Select an option:"
+	echo "   s) List current clients"
 	echo "   1) Add a new client"
 	echo "   2) Remove an existing client"
-	echo "   3) Remove WireGuard"
 	echo "   q) Exit"
 	read -p "Option: " option
 	case "$option" in
+		s)
+			echo
+			echo "Current clients:"
+			sqlite3 "$DB" -header -column "SELECT id, name, ipv4_octet AS IP_octet, dns, created_at FROM clients ORDER BY id;"
+		;;
+		
 		1)
 			echo
 			echo "Provide a name for the client:"
 			read -p "Name: " unsanitized_client
-			# Allow a limited lenght and set of characters to avoid conflicts
+			# Allow a limited length and set of characters to avoid conflicts
 			client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
-			while [[ -z "$client" ]] || grep -q "^# BEGIN_PEER $client$" /etc/wireguard/wg0.conf; do
-				echo "$client: invalid name."
+			# Check if name already exists in DB
+			while [[ -z "$client" ]] || sqlite3 "$DB" "SELECT 1 FROM clients WHERE name = '$client';" | grep -q 1; do
+				echo "$client: invalid or already used name."
 				read -p "Name: " unsanitized_client
 				client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
 			done
@@ -529,26 +478,27 @@ else
 			echo -e '\xE2\x86\x91 That is a QR code containing your client configuration.'
 			echo
 			echo "$client added. Configuration available in:" "$script_dir"/"$client.conf"
-			exit
 		;;
 		2)
-			# This option could be documented a bit better and maybe even be simplified
-			# ...but what can I say, I want some sleep too
-			number_of_clients=$(grep -c '^# BEGIN_PEER' /etc/wireguard/wg0.conf)
-			if [[ "$number_of_clients" = 0 ]]; then
+			# List clients from database
+			mapfile -t clients < <(sqlite3 "$DB" "SELECT name FROM clients ORDER BY id;")
+			number_of_clients=${#clients[@]}
+			if [[ "$number_of_clients" -eq 0 ]]; then
 				echo
 				echo "There are no existing clients!"
 				exit
 			fi
 			echo
 			echo "Select the client to remove:"
-			grep '^# BEGIN_PEER' /etc/wireguard/wg0.conf | cut -d ' ' -f 3 | nl -s ') '
+			for i in "${!clients[@]}"; do
+				echo "$((i+1))) ${clients[i]}"
+			done
 			read -p "Client: " client_number
 			until [[ "$client_number" =~ ^[0-9]+$ && "$client_number" -le "$number_of_clients" ]]; do
 				echo "$client_number: invalid selection."
 				read -p "Client: " client_number
 			done
-			client=$(grep '^# BEGIN_PEER' /etc/wireguard/wg0.conf | cut -d ' ' -f 3 | sed -n "$client_number"p)
+			client="${clients[$((client_number-1))]}"
 			echo
 			read -p "Confirm $client removal? [y/N]: " remove
 			until [[ "$remove" =~ ^[yYnN]*$ ]]; do
@@ -556,105 +506,27 @@ else
 				read -p "Confirm $client removal? [y/N]: " remove
 			done
 			if [[ "$remove" =~ ^[yY]$ ]]; then
-				# The following is the right way to avoid disrupting other active connections:
-				# Remove from the live interface
-				wg set wg0 peer "$(sed -n "/^# BEGIN_PEER $client$/,\$p" /etc/wireguard/wg0.conf | grep -m 1 PublicKey | cut -d " " -f 3)" remove
-				# Remove from the configuration file
+				# Get public key from DB
+				pubkey=$(sqlite3 "$DB" "SELECT public_key FROM clients WHERE name = '$client';")
+				# Remove from live interface
+				wg set wg0 peer "$pubkey" remove
+				# Remove from configuration file
 				sed -i "/^# BEGIN_PEER $client$/,/^# END_PEER $client$/d" /etc/wireguard/wg0.conf
+				# Remove from database
+				sqlite3 "$DB" "DELETE FROM clients WHERE name = '$client';"
 				echo
 				echo "$client removed!"
 			else
 				echo
 				echo "$client removal aborted!"
 			fi
-			exit
 		;;
-		3)
-			echo
-			read -p "Confirm WireGuard removal? [y/N]: " remove
-			until [[ "$remove" =~ ^[yYnN]*$ ]]; do
-				echo "$remove: invalid selection."
-				read -p "Confirm WireGuard removal? [y/N]: " remove
-			done
-			if [[ "$remove" =~ ^[yY]$ ]]; then
-				port=$(grep '^ListenPort' /etc/wireguard/wg0.conf | cut -d " " -f 3)
-				if systemctl is-active --quiet firewalld.service; then
-					ip=$(firewall-cmd --direct --get-rules ipv4 nat POSTROUTING | grep '\-s 10.7.0.0/24 '"'"'!'"'"' -d 10.7.0.0/24' | grep -oE '[^ ]+$')
-					# Using both permanent and not permanent rules to avoid a firewalld reload.
-					firewall-cmd --remove-port="$port"/udp
-					firewall-cmd --zone=trusted --remove-source=10.7.0.0/24
-					firewall-cmd --permanent --remove-port="$port"/udp
-					firewall-cmd --permanent --zone=trusted --remove-source=10.7.0.0/24
-					firewall-cmd --direct --remove-rule ipv4 nat POSTROUTING 0 -s 10.7.0.0/24 ! -d 10.7.0.0/24 -j SNAT --to "$ip"
-					firewall-cmd --permanent --direct --remove-rule ipv4 nat POSTROUTING 0 -s 10.7.0.0/24 ! -d 10.7.0.0/24 -j SNAT --to "$ip"
-					if grep -qs 'fddd:2c4:2c4:2c4::1/64' /etc/wireguard/wg0.conf; then
-						ip6=$(firewall-cmd --direct --get-rules ipv6 nat POSTROUTING | grep '\-s fddd:2c4:2c4:2c4::/64 '"'"'!'"'"' -d fddd:2c4:2c4:2c4::/64' | grep -oE '[^ ]+$')
-						firewall-cmd --zone=trusted --remove-source=fddd:2c4:2c4:2c4::/64
-						firewall-cmd --permanent --zone=trusted --remove-source=fddd:2c4:2c4:2c4::/64
-						firewall-cmd --direct --remove-rule ipv6 nat POSTROUTING 0 -s fddd:2c4:2c4:2c4::/64 ! -d fddd:2c4:2c4:2c4::/64 -j SNAT --to "$ip6"
-						firewall-cmd --permanent --direct --remove-rule ipv6 nat POSTROUTING 0 -s fddd:2c4:2c4:2c4::/64 ! -d fddd:2c4:2c4:2c4::/64 -j SNAT --to "$ip6"
-					fi
-				else
-					systemctl disable --now wg-iptables.service
-					rm -f /etc/systemd/system/wg-iptables.service
-				fi
-				systemctl disable --now wg-quick@wg0.service
-				rm -f /etc/systemd/system/wg-quick@wg0.service.d/boringtun.conf
-				rm -f /etc/sysctl.d/99-wireguard-forward.conf
-				# Different stuff was installed depending on whether BoringTun was used or not
-				if [[ "$use_boringtun" -eq 0 ]]; then
-					if [[ "$os" == "ubuntu" ]]; then
-						# Ubuntu
-						rm -rf /etc/wireguard/
-						apt-get remove --purge -y wireguard wireguard-tools
-					elif [[ "$os" == "debian" ]]; then
-						# Debian
-						rm -rf /etc/wireguard/
-						apt-get remove --purge -y wireguard wireguard-tools
-					elif [[ "$os" == "centos" ]]; then
-						# CentOS
-						dnf remove -y wireguard-tools
-						rm -rf /etc/wireguard/
-					elif [[ "$os" == "fedora" ]]; then
-						# Fedora
-						dnf remove -y wireguard-tools
-						rm -rf /etc/wireguard/
-					fi
-				else
-					{ crontab -l 2>/dev/null | grep -v '/usr/local/sbin/boringtun-upgrade' ; } | crontab -
-					if [[ "$os" == "ubuntu" ]]; then
-						# Ubuntu
-						rm -rf /etc/wireguard/
-						apt-get remove --purge -y wireguard-tools
-					elif [[ "$os" == "debian" ]]; then
-						# Debian
-						rm -rf /etc/wireguard/
-						apt-get remove --purge -y wireguard-tools
-					elif [[ "$os" == "centos" ]]; then
-						# CentOS
-						dnf remove -y wireguard-tools
-						rm -rf /etc/wireguard/
-					elif [[ "$os" == "fedora" ]]; then
-						# Fedora
-						dnf remove -y wireguard-tools
-						rm -rf /etc/wireguard/
-					fi
-					rm -f /usr/local/sbin/boringtun /usr/local/sbin/boringtun-upgrade
-				fi
-				echo
-				echo "WireGuard removed!"
-			else
-				echo
-				echo "WireGuard removal aborted!"
-			fi
-			exit
-		;;
+
 		q)
 			exit
 		;;
 		*)
 			echo "Invalid selection"
 		;;
-
 	esac
 fi

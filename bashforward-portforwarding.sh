@@ -45,7 +45,7 @@ if ! command -v sqlite3 &> /dev/null; then
 fi
 
 # Configuration files and database
-DB_FILE="/root/port-forwarding.db"
+DB_FILE="/root/bashforward.db"
 SCRIPT_FILE="/root/port-forwarding.sh"
 SERVICE_FILE="/etc/systemd/system/port-forwarding.service"
 
