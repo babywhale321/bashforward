@@ -450,7 +450,6 @@ else
 		case "$choice" in
 			s)
 				echo ""
-				echo "Current clients:"
 				sqlite3 "$DB" -header -column "SELECT id, name, ipv4_octet AS IP_octet, dns, created_at FROM clients ORDER BY id;"
 			;;
 			

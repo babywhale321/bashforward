@@ -213,12 +213,7 @@ delete_entry() {
 # List all entries
 list_entries() {
     echo ""
-    printf "%-5s %-30s %-20s %s\n" "ID" "Domain" "Backend" "SSL"
-    echo "----------------------------------------------------------------"
-    sqlite3 "$DB_PATH" "SELECT id, domain, backend_host || ':' || backend_port, ssl FROM proxy_entries;" | while IFS='|' read -r id domain backend ssl; do
-        ssl_status=$([ "$ssl" -eq 1 ] && echo "Yes" || echo "No")
-        printf "%-5s %-30s %-20s %s\n" "$id" "$domain" "$backend" "$ssl_status"
-    done
+    sqlite3 "$DB_PATH" -header -column "SELECT id, domain, backend_host, backend_port, ssl FROM proxy_entries ORDER BY id;"
 }
 
 # Show menu

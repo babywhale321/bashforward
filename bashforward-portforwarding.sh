@@ -227,14 +227,7 @@ list_forwards() {
     echo ""
     iptables -t nat -L -n -v
     echo ""
-    echo "--- Current Forwards ---"
-    sqlite3 $DB_FILE "SELECT id, ip_version, external_port, dest_ip, dest_port FROM forwards;" | while IFS="|" read id ver eport dip dport; do
-        printf "ID: %d | %s | Ext Port: %d | Destination: %s:%d\n" "$id" "$ver" "$eport" "$dip" "$dport"
-    done
-    if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM forwards;") -eq 0 ]; then
-        echo "No forwards configured."
-    fi
-    
+    sqlite3 $DB_FILE -header -column "SELECT id, ip_version, external_port, dest_ip, dest_port FROM forwards ORDER BY id;"
 }
 
 # Delete a forward by ID
