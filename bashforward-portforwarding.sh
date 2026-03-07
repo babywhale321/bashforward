@@ -45,8 +45,8 @@ if ! command -v sqlite3 &> /dev/null; then
 fi
 
 # Configuration files and database
-DB_FILE="/root/bashforward.db"
-SCRIPT_FILE="/root/port-forwarding.sh"
+DB_FILE="bashforward.db"
+SCRIPT_FILE=""$PWD"/port-forwarding.sh"
 SERVICE_FILE="/etc/systemd/system/port-forwarding.service"
 
 # Enable IP forwarding for both IPv4 and IPv6
