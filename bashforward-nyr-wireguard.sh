@@ -154,7 +154,7 @@ new_client_dns () {
 			dns="94.140.14.14, 94.140.15.15"
 		;;
 		8)
-			echo
+			echo ""
 			until [[ -n "$custom_dns" ]]; do
 				echo "Enter DNS servers (one or more IPv4 addresses, separated by commas or spaces):"
 				read -ep "DNS servers: " dns_input
@@ -243,7 +243,7 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		ip=$(ip -4 addr | grep inet | grep -vE '127(\.[0-9]{1,3}){3}' | cut -d '/' -f 1 | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}')
 	else
 		number_of_ip=$(ip -4 addr | grep inet | grep -vEc '127(\.[0-9]{1,3}){3}')
-		echo
+		echo ""
 		echo "Which IPv4 address should be used?"
 		ip -4 addr | grep inet | grep -vE '127(\.[0-9]{1,3}){3}' | cut -d '/' -f 1 | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | nl -s ') '
 		read -ep "IPv4 address [1]: " ip_number
@@ -256,7 +256,7 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	fi
 	# If $ip is a private IP address, the server must be behind NAT
 	if echo "$ip" | grep -qE '^(10\.|172\.1[6789]\.|172\.2[0-9]\.|172\.3[01]\.|192\.168)'; then
-		echo
+		echo ""
 		echo "This server is behind NAT. What is the public IPv4 address or hostname?"
 		# Get public IP and sanitize with grep
 		get_public_ip=$(grep -m 1 -oE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' <<< "$(wget -T 10 -t 1 -4qO- "http://ip1.dynupdate.no-ip.com/" || curl -m 10 -4Ls "http://ip1.dynupdate.no-ip.com/")")
@@ -275,7 +275,7 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	# If system has multiple IPv6, ask the user to select one
 	if [[ $(ip -6 addr | grep -c 'inet6 [23]') -gt 1 ]]; then
 		number_of_ip6=$(ip -6 addr | grep -c 'inet6 [23]')
-		echo
+		echo ""
 		echo "Which IPv6 address should be used?"
 		ip -6 addr | grep 'inet6 [23]' | cut -d '/' -f 1 | grep -oE '([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}' | nl -s ') '
 		read -ep "IPv6 address [1]: " ip6_number
@@ -286,7 +286,7 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		[[ -z "$ip6_number" ]] && ip6_number="1"
 		ip6=$(ip -6 addr | grep 'inet6 [23]' | cut -d '/' -f 1 | grep -oE '([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}' | sed -n "$ip6_number"p)
 	fi
-	echo
+	echo ""
 	echo "What port should WireGuard listen on?"
 	read -ep "Port [51820]: " port
 	until [[ -z "$port" || "$port" =~ ^[0-9]+$ && "$port" -le 65535 ]]; do
@@ -294,15 +294,15 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		read -ep "Port [51820]: " port
 	done
 	[[ -z "$port" ]] && port="51820"
-	echo
+	echo ""
 	echo "Enter a name for the first client:"
 	read -ep "Name [client]: " unsanitized_client
 	# Allow a limited length and set of characters to avoid conflicts
 	client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
 	[[ -z "$client" ]] && client="client"
-	echo
+	echo ""
 	new_client_dns
-	echo
+	echo ""
 	echo "WireGuard installation is ready to begin."
 	# Install a firewall if firewalld or iptables are not already available
 	if ! systemctl is-active --quiet firewalld.service && ! hash iptables 2>/dev/null; then
@@ -423,12 +423,12 @@ WantedBy=multi-user.target" >> /etc/systemd/system/wg-iptables.service
 
 	# Enable and start the wg-quick service
 	systemctl enable --now wg-quick@wg0.service
-	echo
+	echo ""
 	qrencode -t ANSI256UTF8 < "$script_dir"/"$client.conf"
 	echo -e '\xE2\x86\x91 That is a QR code containing the client configuration.'
-	echo
+	echo ""
 	echo "Finished!"
-	echo
+	echo ""
 	echo "The client configuration is available in:" "$script_dir"/"$client.conf"
 	echo "New clients can be added by running this script again."
 else
@@ -441,20 +441,21 @@ else
 	# Initialize database if needed
 	init_db
 	while true; do
-		echo
-		echo "Select an option:"
-		echo "   s) List current clients       1) Add a new client"
-		echo "   2) Remove an existing client  q) Exit"
+		echo ""
+		echo -e "================ Wireguard menu ================"
+		echo "s) List current clients       1) Add a new client"
+		echo "2) Remove an existing client  q) Exit"
+		echo ""
 		read -ep "Enter an option: " choice
 		case "$choice" in
 			s)
-				echo
+				echo ""
 				echo "Current clients:"
 				sqlite3 "$DB" -header -column "SELECT id, name, ipv4_octet AS IP_octet, dns, created_at FROM clients ORDER BY id;"
 			;;
 			
 			1)
-				echo
+				echo ""
 				echo "Provide a name for the client:"
 				read -ep "Name: " unsanitized_client
 				# Allow a limited length and set of characters to avoid conflicts
@@ -465,15 +466,15 @@ else
 					read -ep "Name: " unsanitized_client
 					client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
 				done
-				echo
+				echo ""
 				new_client_dns
 				new_client_setup
 				# Append new client configuration to the WireGuard interface
 				wg addconf wg0 <(sed -n "/^# BEGIN_PEER $client/,/^# END_PEER $client/p" /etc/wireguard/wg0.conf)
-				echo
+				echo ""
 				qrencode -t ANSI256UTF8 < "$script_dir"/"$client.conf"
 				echo -e '\xE2\x86\x91 That is a QR code containing your client configuration.'
-				echo
+				echo ""
 				echo "$client added. Configuration available in:" "$script_dir"/"$client.conf"
 			;;
 			2)
@@ -481,10 +482,10 @@ else
 				mapfile -t clients < <(sqlite3 "$DB" "SELECT name FROM clients ORDER BY id;")
 				number_of_clients=${#clients[@]}
 				if [[ "$number_of_clients" -eq 0 ]]; then
-					echo
+					echo ""
 					echo "There are no existing clients!"
 				fi
-				echo
+				echo ""
 				echo "Select the client to remove:"
 				for i in "${!clients[@]}"; do
 					echo "$((i+1))) ${clients[i]}"
@@ -495,7 +496,7 @@ else
 					read -ep "Client: " client_number
 				done
 				client="${clients[$((client_number-1))]}"
-				echo
+				echo ""
 				read -ep "Confirm $client removal? [y/N]: " remove
 				until [[ "$remove" =~ ^[yYnN]*$ ]]; do
 					echo "$remove: invalid selection."
@@ -510,10 +511,10 @@ else
 					sed -i "/^# BEGIN_PEER $client$/,/^# END_PEER $client$/d" /etc/wireguard/wg0.conf
 					# Remove from database
 					sqlite3 "$DB" "DELETE FROM clients WHERE name = '$client';"
-					echo
+					echo ""
 					echo "$client removed!"
 				else
-					echo
+					echo ""
 					echo "$client removal aborted!"
 				fi
 			;;

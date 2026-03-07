@@ -224,6 +224,9 @@ add_forward() {
 
 # List all forwards
 list_forwards() {
+    echo ""
+    iptables -t nat -L -n -v
+    echo ""
     echo "--- Current Forwards ---"
     sqlite3 $DB_FILE "SELECT id, ip_version, external_port, dest_ip, dest_port FROM forwards;" | while IFS="|" read id ver eport dip dport; do
         printf "ID: %d | %s | Ext Port: %d | Destination: %s:%d\n" "$id" "$ver" "$eport" "$dip" "$dport"
@@ -283,9 +286,10 @@ ensure_systemd_service
 
 # Manage Port forwarding
 while true; do
-    echo -e "\n==================================== bashforward ===================================="
+    echo ""
+    echo -e "================================= Port Forwarding Menu ================================="
     echo "s. Show port forwarding rules        1. Add a forwarding rule  2. Delete a forwarding rule"  
-    echo "3. Reset all forwarding rules        q. Quit"
+    echo "3. Reset all forwarding rules        q. Exit"
     echo ""
     read -ep "Enter an option: " choice
 

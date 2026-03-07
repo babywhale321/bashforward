@@ -224,8 +224,7 @@ list_entries() {
 # Show menu
 show_menu() {
     echo ""
-    echo ""
-    echo "===== NGINX Reverse Proxy Menu ====="
+    echo -e "===== NGINX Reverse Proxy Menu ====="
     echo ""
     echo "s) List entries  1) Add entry"
     echo "2) Delete entry  q) Exit"

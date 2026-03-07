@@ -1,10 +1,11 @@
 while true; do
-    echo -e "\n=============== bashforward ==============="
-    echo "1. Port forwarding menu  2. Wireguard menu"
-    echo "3. NGINX menu"
+    echo ""
+    echo -e "===================== bashforward ====================="
+    echo "1. Port Forwarding Menu  2. Wireguard Menu  3. NGINX menu"
     echo ""
     echo "q. Quit"
-    read -ep "Choose an option: " choice
+    echo ""
+    read -ep "Enter an option: " choice
 
     case $choice in
         1)  
