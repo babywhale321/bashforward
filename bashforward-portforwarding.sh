@@ -287,9 +287,9 @@ while true; do
     echo "s. Show port forwarding rules        1. Add a forwarding rule  2. Delete a forwarding rule"  
     echo "3. Reset all forwarding rules        q. Quit"
     echo ""
-    read -ep "Enter your choice: " menu_choice
+    read -ep "Enter an option: " choice
 
-    case $menu_choice in
+    case $choice in
         s)  
             list_forwards
             ;;
@@ -312,7 +312,7 @@ while true; do
             ;;
 
         *)
-            echo "Invalid choice. Please enter a valid option."
+            echo "Invalid selection"
             ;;
     esac
 done

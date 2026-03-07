@@ -1,11 +1,12 @@
 while true; do
     echo -e "\n=============== bashforward ==============="
-    echo "1. Port forwarding menu  2. Wireguard menu"  
+    echo "1. Port forwarding menu  2. Wireguard menu"
+    echo "3. NGINX menu"
     echo ""
     echo "q. Quit"
-    read -ep "Enter your choice: " menu_choice
+    read -ep "Choose an option: " choice
 
-    case $menu_choice in
+    case $choice in
         1)  
             bash bashforward-portforwarding.sh
             ;;
@@ -14,13 +15,16 @@ while true; do
             bash bashforward-nyr-wireguard.sh
             ;;
 
+        3)
+            bash bashforward-nginx.sh
+            ;;
         q)
             # Exit
             break
             ;;
 
         *)
-            echo "Invalid choice. Please enter a valid option."
+            echo "Invalid selection"
             ;;
     esac
 done

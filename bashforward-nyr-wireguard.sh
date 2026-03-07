@@ -10,7 +10,7 @@
 # Detect Debian users running the script with "sh" instead of bash
 if readlink /proc/$$/exe | grep -q "dash"; then
 	echo 'This installer needs to be run with "bash", not "sh".'
-	exit
+	
 fi
 
 # Discard stdin. Needed when running from a one-liner which includes a newline
@@ -33,24 +33,24 @@ elif [[ -e /etc/fedora-release ]]; then
 else
 	echo "This installer seems to be running on an unsupported distribution.
 Supported distros are Ubuntu, Debian, AlmaLinux, Rocky Linux, CentOS and Fedora."
-	exit
+	
 fi
 
 if [[ "$os" == "ubuntu" && "$os_version" -lt 2204 ]]; then
 	echo "Ubuntu 22.04 or higher is required to use this installer.
 This version of Ubuntu is too old and unsupported."
-	exit
+	
 fi
 
 if [[ "$os" == "debian" ]]; then
 	if grep -q '/sid' /etc/debian_version; then
 		echo "Debian Testing and Debian Unstable are unsupported by this installer."
-		exit
+		
 	fi
 	if [[ "$os_version" -lt 11 ]]; then
 		echo "Debian 11 or higher is required to use this installer.
 This version of Debian is too old and unsupported."
-		exit
+		
 	fi
 fi
 
@@ -58,18 +58,18 @@ if [[ "$os" == "centos" && "$os_version" -lt 9 ]]; then
 	os_name=$(sed 's/ release.*//' /etc/almalinux-release /etc/rocky-release /etc/centos-release 2>/dev/null | head -1)
 	echo "$os_name 9 or higher is required to use this installer.
 This version of $os_name is too old and unsupported."
-	exit
+	
 fi
 
 # Detect environments where $PATH does not include the sbin directories
 if ! grep -q sbin <<< "$PATH"; then
 	echo '$PATH does not include sbin. Try using "su -" instead of "su".'
-	exit
+	
 fi
 
 if [[ "$EUID" -ne 0 ]]; then
 	echo "This installer needs to be run with superuser privileges."
-	exit
+	
 fi
 
 # Store the absolute path of the directory where the script is located
@@ -98,7 +98,7 @@ find_free_octet() {
 	while true; do
 		if [[ $octet -ge 255 ]]; then
 			echo "253 clients are already configured. The WireGuard internal subnet is full!" >&2
-			exit 1
+			
 		fi
 		if ! sqlite3 "$DB" "SELECT 1 FROM clients WHERE ipv4_octet = $octet;" | grep -q 1; then
 			echo $octet
@@ -118,10 +118,10 @@ new_client_dns () {
 	echo "   6) Gcore"
 	echo "   7) AdGuard"
 	echo "   8) Specify custom resolvers"
-	read -p "DNS server [1]: " dns
+	read -ep "DNS server [1]: " dns
 	until [[ -z "$dns" || "$dns" =~ ^[1-8]$ ]]; do
 		echo "$dns: invalid selection."
-		read -p "DNS server [1]: " dns
+		read -ep "DNS server [1]: " dns
 	done
 	case "$dns" in
 		1|"")
@@ -157,7 +157,7 @@ new_client_dns () {
 			echo
 			until [[ -n "$custom_dns" ]]; do
 				echo "Enter DNS servers (one or more IPv4 addresses, separated by commas or spaces):"
-				read -p "DNS servers: " dns_input
+				read -ep "DNS servers: " dns_input
 				# Convert comma delimited to space delimited
 				dns_input=$(echo "$dns_input" | tr ',' ' ')
 				# Validate and build custom DNS IP list
@@ -246,10 +246,10 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		echo
 		echo "Which IPv4 address should be used?"
 		ip -4 addr | grep inet | grep -vE '127(\.[0-9]{1,3}){3}' | cut -d '/' -f 1 | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | nl -s ') '
-		read -p "IPv4 address [1]: " ip_number
+		read -ep "IPv4 address [1]: " ip_number
 		until [[ -z "$ip_number" || "$ip_number" =~ ^[0-9]+$ && "$ip_number" -le "$number_of_ip" ]]; do
 			echo "$ip_number: invalid selection."
-			read -p "IPv4 address [1]: " ip_number
+			read -ep "IPv4 address [1]: " ip_number
 		done
 		[[ -z "$ip_number" ]] && ip_number="1"
 		ip=$(ip -4 addr | grep inet | grep -vE '127(\.[0-9]{1,3}){3}' | cut -d '/' -f 1 | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | sed -n "$ip_number"p)
@@ -260,11 +260,11 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		echo "This server is behind NAT. What is the public IPv4 address or hostname?"
 		# Get public IP and sanitize with grep
 		get_public_ip=$(grep -m 1 -oE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' <<< "$(wget -T 10 -t 1 -4qO- "http://ip1.dynupdate.no-ip.com/" || curl -m 10 -4Ls "http://ip1.dynupdate.no-ip.com/")")
-		read -p "Public IPv4 address / hostname [$get_public_ip]: " public_ip
+		read -ep "Public IPv4 address / hostname [$get_public_ip]: " public_ip
 		# If the checkip service is unavailable and user didn't provide input, ask again
 		until [[ -n "$get_public_ip" || -n "$public_ip" ]]; do
 			echo "Invalid input."
-			read -p "Public IPv4 address / hostname: " public_ip
+			read -ep "Public IPv4 address / hostname: " public_ip
 		done
 		[[ -z "$public_ip" ]] && public_ip="$get_public_ip"
 	fi
@@ -278,25 +278,25 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 		echo
 		echo "Which IPv6 address should be used?"
 		ip -6 addr | grep 'inet6 [23]' | cut -d '/' -f 1 | grep -oE '([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}' | nl -s ') '
-		read -p "IPv6 address [1]: " ip6_number
+		read -ep "IPv6 address [1]: " ip6_number
 		until [[ -z "$ip6_number" || "$ip6_number" =~ ^[0-9]+$ && "$ip6_number" -le "$number_of_ip6" ]]; do
 			echo "$ip6_number: invalid selection."
-			read -p "IPv6 address [1]: " ip6_number
+			read -ep "IPv6 address [1]: " ip6_number
 		done
 		[[ -z "$ip6_number" ]] && ip6_number="1"
 		ip6=$(ip -6 addr | grep 'inet6 [23]' | cut -d '/' -f 1 | grep -oE '([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}' | sed -n "$ip6_number"p)
 	fi
 	echo
 	echo "What port should WireGuard listen on?"
-	read -p "Port [51820]: " port
+	read -ep "Port [51820]: " port
 	until [[ -z "$port" || "$port" =~ ^[0-9]+$ && "$port" -le 65535 ]]; do
 		echo "$port: invalid port."
-		read -p "Port [51820]: " port
+		read -ep "Port [51820]: " port
 	done
 	[[ -z "$port" ]] && port="51820"
 	echo
 	echo "Enter a name for the first client:"
-	read -p "Name [client]: " unsanitized_client
+	read -ep "Name [client]: " unsanitized_client
 	# Allow a limited length and set of characters to avoid conflicts
 	client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
 	[[ -z "$client" ]] && client="client"
@@ -435,98 +435,95 @@ else
 	# WireGuard is already installed. Ensure sqlite3 is available.
 	if ! hash sqlite3 2>/dev/null; then
 		echo "SQLite3 is required for client management. Please install it and re-run."
-		exit 1
+
 	fi
 
 	# Initialize database if needed
 	init_db
-
-	echo "WireGuard is already installed."
-	echo
-	echo "Select an option:"
-	echo "   s) List current clients"
-	echo "   1) Add a new client"
-	echo "   2) Remove an existing client"
-	echo "   q) Exit"
-	read -p "Option: " option
-	case "$option" in
-		s)
-			echo
-			echo "Current clients:"
-			sqlite3 "$DB" -header -column "SELECT id, name, ipv4_octet AS IP_octet, dns, created_at FROM clients ORDER BY id;"
-		;;
-		
-		1)
-			echo
-			echo "Provide a name for the client:"
-			read -p "Name: " unsanitized_client
-			# Allow a limited length and set of characters to avoid conflicts
-			client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
-			# Check if name already exists in DB
-			while [[ -z "$client" ]] || sqlite3 "$DB" "SELECT 1 FROM clients WHERE name = '$client';" | grep -q 1; do
-				echo "$client: invalid or already used name."
-				read -p "Name: " unsanitized_client
+	while true; do
+		echo
+		echo "Select an option:"
+		echo "   s) List current clients       1) Add a new client"
+		echo "   2) Remove an existing client  q) Exit"
+		read -ep "Enter an option: " choice
+		case "$choice" in
+			s)
+				echo
+				echo "Current clients:"
+				sqlite3 "$DB" -header -column "SELECT id, name, ipv4_octet AS IP_octet, dns, created_at FROM clients ORDER BY id;"
+			;;
+			
+			1)
+				echo
+				echo "Provide a name for the client:"
+				read -ep "Name: " unsanitized_client
+				# Allow a limited length and set of characters to avoid conflicts
 				client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
-			done
-			echo
-			new_client_dns
-			new_client_setup
-			# Append new client configuration to the WireGuard interface
-			wg addconf wg0 <(sed -n "/^# BEGIN_PEER $client/,/^# END_PEER $client/p" /etc/wireguard/wg0.conf)
-			echo
-			qrencode -t ANSI256UTF8 < "$script_dir"/"$client.conf"
-			echo -e '\xE2\x86\x91 That is a QR code containing your client configuration.'
-			echo
-			echo "$client added. Configuration available in:" "$script_dir"/"$client.conf"
-		;;
-		2)
-			# List clients from database
-			mapfile -t clients < <(sqlite3 "$DB" "SELECT name FROM clients ORDER BY id;")
-			number_of_clients=${#clients[@]}
-			if [[ "$number_of_clients" -eq 0 ]]; then
+				# Check if name already exists in DB
+				while [[ -z "$client" ]] || sqlite3 "$DB" "SELECT 1 FROM clients WHERE name = '$client';" | grep -q 1; do
+					echo "$client: invalid or already used name."
+					read -ep "Name: " unsanitized_client
+					client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client" | cut -c-15)
+				done
 				echo
-				echo "There are no existing clients!"
-				exit
-			fi
-			echo
-			echo "Select the client to remove:"
-			for i in "${!clients[@]}"; do
-				echo "$((i+1))) ${clients[i]}"
-			done
-			read -p "Client: " client_number
-			until [[ "$client_number" =~ ^[0-9]+$ && "$client_number" -le "$number_of_clients" ]]; do
-				echo "$client_number: invalid selection."
-				read -p "Client: " client_number
-			done
-			client="${clients[$((client_number-1))]}"
-			echo
-			read -p "Confirm $client removal? [y/N]: " remove
-			until [[ "$remove" =~ ^[yYnN]*$ ]]; do
-				echo "$remove: invalid selection."
-				read -p "Confirm $client removal? [y/N]: " remove
-			done
-			if [[ "$remove" =~ ^[yY]$ ]]; then
-				# Get public key from DB
-				pubkey=$(sqlite3 "$DB" "SELECT public_key FROM clients WHERE name = '$client';")
-				# Remove from live interface
-				wg set wg0 peer "$pubkey" remove
-				# Remove from configuration file
-				sed -i "/^# BEGIN_PEER $client$/,/^# END_PEER $client$/d" /etc/wireguard/wg0.conf
-				# Remove from database
-				sqlite3 "$DB" "DELETE FROM clients WHERE name = '$client';"
+				new_client_dns
+				new_client_setup
+				# Append new client configuration to the WireGuard interface
+				wg addconf wg0 <(sed -n "/^# BEGIN_PEER $client/,/^# END_PEER $client/p" /etc/wireguard/wg0.conf)
 				echo
-				echo "$client removed!"
-			else
+				qrencode -t ANSI256UTF8 < "$script_dir"/"$client.conf"
+				echo -e '\xE2\x86\x91 That is a QR code containing your client configuration.'
 				echo
-				echo "$client removal aborted!"
-			fi
-		;;
+				echo "$client added. Configuration available in:" "$script_dir"/"$client.conf"
+			;;
+			2)
+				# List clients from database
+				mapfile -t clients < <(sqlite3 "$DB" "SELECT name FROM clients ORDER BY id;")
+				number_of_clients=${#clients[@]}
+				if [[ "$number_of_clients" -eq 0 ]]; then
+					echo
+					echo "There are no existing clients!"
+				fi
+				echo
+				echo "Select the client to remove:"
+				for i in "${!clients[@]}"; do
+					echo "$((i+1))) ${clients[i]}"
+				done
+				read -ep "Client: " client_number
+				until [[ "$client_number" =~ ^[0-9]+$ && "$client_number" -le "$number_of_clients" ]]; do
+					echo "$client_number: invalid selection."
+					read -ep "Client: " client_number
+				done
+				client="${clients[$((client_number-1))]}"
+				echo
+				read -ep "Confirm $client removal? [y/N]: " remove
+				until [[ "$remove" =~ ^[yYnN]*$ ]]; do
+					echo "$remove: invalid selection."
+					read -ep "Confirm $client removal? [y/N]: " remove
+				done
+				if [[ "$remove" =~ ^[yY]$ ]]; then
+					# Get public key from DB
+					pubkey=$(sqlite3 "$DB" "SELECT public_key FROM clients WHERE name = '$client';")
+					# Remove from live interface
+					wg set wg0 peer "$pubkey" remove
+					# Remove from configuration file
+					sed -i "/^# BEGIN_PEER $client$/,/^# END_PEER $client$/d" /etc/wireguard/wg0.conf
+					# Remove from database
+					sqlite3 "$DB" "DELETE FROM clients WHERE name = '$client';"
+					echo
+					echo "$client removed!"
+				else
+					echo
+					echo "$client removal aborted!"
+				fi
+			;;
 
-		q)
-			exit
-		;;
-		*)
-			echo "Invalid selection"
-		;;
-	esac
+			q)
+				exit
+			;;
+			*)
+				echo "Invalid selection"
+			;;
+		esac
+	done
 fi
