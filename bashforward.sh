@@ -1,6 +1,6 @@
 while true; do
     echo ""
-    echo -e "===================== bashforward ====================="
+    echo -e "======================= bashforward ======================="
     echo "1. Port Forwarding Menu  2. Wireguard Menu  3. NGINX menu"
     echo ""
     echo "q. Quit"
