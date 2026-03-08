@@ -1,10 +1,9 @@
 #!/bin/bash
-
-# Check if user is root
-if [ "$EUID" -ne 0 ]; then
-    echo "Please run as root or with sudo"
-    exit 1
-fi
+#
+# https://github.com/babywhale321/bashforward
+# https://bashforward.com
+#
+# Author: Kyle Schroeder "BabyWhale"
 
 # Function to validate IPv4 address
 validate_ipv4() {
@@ -31,19 +30,6 @@ validate_ipv6() {
     return $stat
 }
 
-# Check for sqlite3
-if ! command -v sqlite3 &> /dev/null; then
-    echo "sqlite3 not found. Installing..."
-    if command -v apt &> /dev/null; then
-        apt update && apt install -y sqlite3
-    elif command -v yum &> /dev/null; then
-        yum install -y sqlite3
-    else
-        echo "Please install sqlite3 manually and re-run the script."
-        exit 1
-    fi
-fi
-
 # Configuration files and database
 DB_FILE="bashforward.db"
 SCRIPT_FILE=""$PWD"/port-forwarding.sh"
@@ -60,17 +46,6 @@ for param in "net.ipv4.ip_forward=1" "net.ipv6.conf.all.forwarding=1"; do
     fi
 done
 sysctl -p >/dev/null
-
-# Initialize database
-init_db() {
-    sqlite3 $DB_FILE "CREATE TABLE IF NOT EXISTS forwards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ip_version TEXT NOT NULL,
-        external_port INTEGER NOT NULL,
-        dest_ip TEXT NOT NULL,
-        dest_port INTEGER NOT NULL
-    );"
-}
 
 # Ensure custom iptables chains exist and jump rules are present
 ensure_iptables_chains() {
@@ -120,8 +95,8 @@ ip6tables -t nat -F PORT_FORWARDING_POSTROUTING
 EOF
     echo "" >> $SCRIPT_FILE
 
-    # Get all forwards
-    local count=$(sqlite3 $DB_FILE "SELECT COUNT(*) FROM forwards;")
+    # Get all portforward_entries
+    local count=$(sqlite3 $DB_FILE "SELECT COUNT(*) FROM portforward_entries;")
     if [ "$count" -gt 0 ]; then
         # Add MASQUERADE rule in POSTROUTING chain (once)
         echo "# Add MASQUERADE for IPv4" >> $SCRIPT_FILE
@@ -131,7 +106,7 @@ EOF
         echo "" >> $SCRIPT_FILE
 
         # Process each forward
-        sqlite3 $DB_FILE "SELECT ip_version, external_port, dest_ip, dest_port FROM forwards;" | while IFS="|" read ver eport dip dport; do
+        sqlite3 $DB_FILE "SELECT ip_version, external_port, dest_ip, dest_port FROM portforward_entries;" | while IFS="|" read ver eport dip dport; do
             if [ "$ver" == "v4" ]; then
                 echo "iptables -t nat -A PORT_FORWARDING_PREROUTING -p tcp --dport $eport -j DNAT --to-destination $dip:$dport" >> $SCRIPT_FILE
                 echo "iptables -t nat -A PORT_FORWARDING_PREROUTING -p udp --dport $eport -j DNAT --to-destination $dip:$dport" >> $SCRIPT_FILE
@@ -141,7 +116,7 @@ EOF
             fi
         done
     else
-        echo "# No forwards configured." >> $SCRIPT_FILE
+        echo "# No portforward_entries configured." >> $SCRIPT_FILE
     fi
     chmod +x $SCRIPT_FILE
 }
@@ -212,7 +187,7 @@ add_forward() {
     done
 
     # Insert into database
-    sqlite3 $DB_FILE "INSERT INTO forwards (ip_version, external_port, dest_ip, dest_port) VALUES ('$ip_version', $external_port, '$dest_ip', $dest_port);"
+    sqlite3 $DB_FILE "INSERT INTO portforward_entries (ip_version, external_port, dest_ip, dest_port) VALUES ('$ip_version', $external_port, '$dest_ip', $dest_port);"
     
     # Regenerate script and apply
     regenerate_script
@@ -222,19 +197,19 @@ add_forward() {
     
 }
 
-# List all forwards
+# List all portforward_entries
 list_forwards() {
     echo ""
     iptables -t nat -L -n -v
     echo ""
-    sqlite3 $DB_FILE -header -column "SELECT id, ip_version, external_port, dest_ip, dest_port FROM forwards ORDER BY id;"
+    sqlite3 $DB_FILE -header -column "SELECT id, ip_version, external_port, dest_ip, dest_port FROM portforward_entries ORDER BY id;"
 }
 
 # Delete a forward by ID
 delete_forward() {
     echo "--- Delete Forward ---"
     list_forwards
-    if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM forwards;") -eq 0 ]; then
+    if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM portforward_entries;") -eq 0 ]; then
         return
     fi
     read -ep "Enter the ID of the forward to delete: " id
@@ -244,28 +219,28 @@ delete_forward() {
         return
     fi
     # Check if exists
-    if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM forwards WHERE id=$id;") -eq 0 ]; then
+    if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM portforward_entries WHERE id=$id;") -eq 0 ]; then
         echo "ID not found."
         
         return
     fi
-    sqlite3 $DB_FILE "DELETE FROM forwards WHERE id=$id;"
+    sqlite3 $DB_FILE "DELETE FROM portforward_entries WHERE id=$id;"
     regenerate_script
     apply_rules
     echo "Forward deleted."
     
 }
 
-# Reset all forwards
+# Reset all portforward_entries
 reset_all() {
-    echo "--- Reset All Forwards ---"
-    read -ep "Are you sure? This will delete all forwards. (y/n): " confirm
+    echo "--- Reset All portforward_entries ---"
+    read -ep "Are you sure? This will delete all portforward_entries. (y/n): " confirm
     confirm=$(echo "$confirm" | tr '[:upper:]' '[:lower:]')
     if [[ "$confirm" == "y" || "$confirm" == "yes" ]]; then
-        sqlite3 $DB_FILE "DELETE FROM forwards;"
+        sqlite3 $DB_FILE "DELETE FROM portforward_entries;"
         regenerate_script
         apply_rules
-        echo "All forwards cleared."
+        echo "All portforward_entries cleared."
     else
         echo "Cancelled."
     fi
@@ -273,7 +248,6 @@ reset_all() {
 }
 
 # --- Main ---
-init_db
 ensure_iptables_chains
 ensure_systemd_service
 

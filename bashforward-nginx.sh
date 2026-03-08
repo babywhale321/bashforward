@@ -1,48 +1,23 @@
 #!/bin/bash
+#
+# https://github.com/babywhale321/bashforward
+# https://bashforward.com
+#
+# Author: Kyle Schroeder "BabyWhale"
 
 # Configuration
-DB_PATH="bashforward.db"
+DB_FILE="bashforward.db"
 NGINX_CONF_DIR="/etc/nginx/conf.d"
 GENERATED_CONF="${NGINX_CONF_DIR}/reverse-proxy-generated.conf"
 NGINX_SERVICE="nginx"
 WEBROOT="/var/www/html"  # Common webroot for Certbot challenges
-
-# Install required packages
-install_packages() {
-    echo "Installing required packages (nginx, sqlite3, certbot)..."
-    if command -v apt &>/dev/null; then
-        apt update
-        apt install -y nginx sqlite3 certbot python3-certbot-nginx
-    elif command -v yum &>/dev/null; then
-        yum install -y nginx sqlite certbot python3-certbot-nginx
-    elif command -v dnf &>/dev/null; then
-        dnf install -y nginx sqlite certbot python3-certbot-nginx
-    else
-        echo "Unsupported package manager. Please install nginx, sqlite3, and certbot manually."
-        exit 1
-    fi
-}
-
-# Initialize SQLite database
-init_db() {
-    sqlite3 "$DB_PATH" <<EOF
-CREATE TABLE IF NOT EXISTS proxy_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    domain TEXT UNIQUE NOT NULL,
-    backend_host TEXT NOT NULL,
-    backend_port INTEGER NOT NULL,
-    ssl BOOLEAN DEFAULT 0  -- 1 if SSL is enabled (certificates managed by Certbot)
-);
-EOF
-    chmod 600 "$DB_PATH"
-}
 
 # Ensure webroot exists
 ensure_webroot() {
     if [[ ! -d "$WEBROOT" ]]; then
         mkdir -p "$WEBROOT"
     fi
-    # Set basic permissions (optional)
+    # Set basic permissions
     chmod 755 "$WEBROOT"
 }
 
@@ -59,7 +34,7 @@ regenerate_config() {
     # Build config in a temporary file
     TMP_CONF=$(mktemp)
 
-    sqlite3 "$DB_PATH" "SELECT id, domain, backend_host, backend_port, ssl FROM proxy_entries;" | while IFS='|' read -r id domain backend_host backend_port ssl; do
+    sqlite3 "$DB_FILE" "SELECT id, domain, backend_host, backend_port, ssl FROM nginx_entries;" | while IFS='|' read -r id domain backend_host backend_port ssl; do
         # HTTP server block (always present, with acme-challenge location for SSL domains)
         cat >> "$TMP_CONF" <<EOF
 # Entry ID: $id - Domain: $domain
@@ -157,7 +132,7 @@ add_entry() {
     echo ""
     read -ep "Domain (e.g., example.com): " domain
     # Check if domain already exists
-    if sqlite3 "$DB_PATH" "SELECT domain FROM proxy_entries WHERE domain='$domain';" | grep -q "$domain"; then
+    if sqlite3 "$DB_FILE" "SELECT domain FROM nginx_entries WHERE domain='$domain';" | grep -q "$domain"; then
         echo "Domain $domain already exists in database."
         return
     fi
@@ -171,7 +146,7 @@ add_entry() {
     fi
 
     # Insert into database
-    sqlite3 "$DB_PATH" "INSERT INTO proxy_entries (domain, backend_host, backend_port, ssl) VALUES ('$domain', '$backend_host', $backend_port, $ssl);"
+    sqlite3 "$DB_FILE" "INSERT INTO nginx_entries (domain, backend_host, backend_port, ssl) VALUES ('$domain', '$backend_host', $backend_port, $ssl);"
     echo "Entry added."
 
     # Regenerate config (so HTTP block is available for Certbot validation)
@@ -197,13 +172,12 @@ delete_entry() {
         return
     fi
     # Check if id exists
-    if ! sqlite3 "$DB_PATH" "SELECT id FROM proxy_entries WHERE id=$id;" | grep -q "$id"; then
+    if ! sqlite3 "$DB_FILE" "SELECT id FROM nginx_entries WHERE id=$id;" | grep -q "$id"; then
         echo "Entry with ID $id not found."
         return
     fi
 
-    # Optionally, we could also remove certificates via certbot revoke, but we'll leave that to the user.
-    sqlite3 "$DB_PATH" "DELETE FROM proxy_entries WHERE id=$id;"
+    sqlite3 "$DB_FILE" "DELETE FROM nginx_entries WHERE id=$id;"
     echo "Entry deleted."
 
     regenerate_config
@@ -213,7 +187,7 @@ delete_entry() {
 # List all entries
 list_entries() {
     echo ""
-    sqlite3 "$DB_PATH" -header -column "SELECT id, domain, backend_host, backend_port, ssl FROM proxy_entries ORDER BY id;"
+    sqlite3 "$DB_FILE" -header -column "SELECT id, domain, backend_host, backend_port, ssl FROM nginx_entries ORDER BY id;"
 }
 
 # Show menu
@@ -230,20 +204,12 @@ show_menu() {
 # Main script
 main() {
 
-    # Check if nginx, sqlite3, certbot are installed, install if missing
-    if ! command -v nginx &>/dev/null || ! command -v sqlite3 &>/dev/null || ! command -v certbot &>/dev/null; then
-        install_packages
-    fi
-
     # Ensure Nginx is running
     if ! systemctl is-active --quiet "$NGINX_SERVICE"; then
         echo "Starting Nginx..."
         systemctl start "$NGINX_SERVICE"
         systemctl enable "$NGINX_SERVICE"
     fi
-
-    # Initialize database
-    init_db
 
     # Ensure webroot exists
     ensure_webroot
@@ -254,7 +220,7 @@ main() {
         reload_nginx
     fi
 
-    # Menu loop
+    # Menu
     while true; do
         show_menu
         case $choice in

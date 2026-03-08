@@ -1,3 +1,10 @@
+#!/bin/bash
+#
+# https://github.com/babywhale321/bashforward
+# https://bashforward.com
+#
+# Author: Kyle Schroeder "BabyWhale"
+
 while true; do
     echo ""
     echo -e "======================= bashforward ======================="
