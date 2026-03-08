@@ -10,7 +10,9 @@ DB_FILE="bashforward.db"
 
 # Install required packages
 install_packages() {
+    echo ""
     echo "Required packages (nginx, sqlite3, wget, qrencode, wireguard, wireguard-tools, iptables, and certbot)"
+    echo ""
     read -ep "Press enter to install these required packages for bashforward."
     if command -v apt &>/dev/null; then
         apt update
@@ -28,6 +30,7 @@ if [ ! -f "$DB_FILE" ]; then
     sqlite3 "$DB_FILE" "SELECT 1;" >/dev/null 2>&1
     # Set correct permissions
     chmod 600 "$DB_FILE"
+    echo ""
     echo "Database file created: $DB_FILE"
 fi
 }
@@ -75,6 +78,7 @@ init_wireguard_table
 init_nginx_table
 init_portforwarding_table
 
+echo ""
 echo "==========================================================="
 echo "If no errors above then you can run bashforward with"
 echo "bash bashforward.sh"
