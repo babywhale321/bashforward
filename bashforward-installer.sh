@@ -21,6 +21,17 @@ install_packages() {
     fi
 }
 
+# Function to create database file and set permissions only if it does not already exist
+init_database() {
+if [ ! -f "$DB_FILE" ]; then
+    # Create an empty SQLite database file
+    sqlite3 "$DB_FILE" "SELECT 1;" >/dev/null 2>&1
+    # Set correct permissions
+    chmod 600 "$DB_FILE"
+    echo "Database file created: $DB_FILE"
+fi
+}
+
 # Function to create wireguard_entries table
 init_wireguard_table() {
     sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS wireguard_entries (
@@ -56,17 +67,10 @@ init_portforwarding_table() {
     );"
 }
 
-# Create database file and set permissions only if it does not already exist
-if [ ! -f "$DB_FILE" ]; then
-    # Create an empty SQLite database file
-    sqlite3 "$DB_FILE" "SELECT 1;" >/dev/null 2>&1
-    # Set correct permissions
-    chmod 600 "$DB_FILE"
-    echo "Database file created: $DB_FILE"
-fi
 
 # Main
 install_packages
+init_database
 init_wireguard_table
 init_nginx_table
 init_portforwarding_table
