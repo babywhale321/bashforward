@@ -230,11 +230,22 @@ main() {
     while true; do
         show_menu
         case $choice in
-            s) list_entries ;;
-            1) add_entry ;;
-            2) delete_entry ;;
-            q) exit 0 ;;
-            *) echo "Invalid selection" ;;
+            s) 
+               list_entries 
+               ;;
+            1) 
+               add_entry
+               ;;
+            2) 
+               delete_entry
+               ;;
+            q) 
+               exit 0 
+               ;;
+            *) 
+               echo ""
+               echo "Invalid selection" 
+               ;;
         esac
     done
 }

@@ -33,6 +33,7 @@ while true; do
             ;;
 
         *)
+            echo ""
             echo "Invalid selection"
             ;;
     esac

@@ -366,8 +366,13 @@ else
                     echo "$client removal aborted!"
                 fi
             ;;
-            q) exit 0 ;;
-            *) echo "Invalid selection" ;;
+            q)
+               exit 0 
+               ;;
+            *) 
+               echo ""
+               echo "Invalid selection" 
+               ;;
         esac
     done
 fi
