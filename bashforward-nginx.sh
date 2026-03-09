@@ -131,14 +131,18 @@ run_certbot() {
 add_entry() {
     echo ""
     read -ep "Domain (e.g., example.com): " domain
+    echo ""
     # Check if domain already exists
     if sqlite3 "$DB_FILE" "SELECT domain FROM nginx_entries WHERE domain='$domain';" | grep -q "$domain"; then
         echo "Domain $domain already exists in database."
+        echo ""
         return
     fi
 
     read -ep "Backend host (IP or hostname): " backend_host
+    echo ""
     read -ep "Backend port: " backend_port
+    echo ""
     read -ep "Enable SSL (via Certbot)? (y/n): " ssl_choice
     ssl=0
     if [[ "$ssl_choice" =~ ^[Yy]$ ]]; then
@@ -147,6 +151,7 @@ add_entry() {
 
     # Insert into database
     sqlite3 "$DB_FILE" "INSERT INTO nginx_entries (domain, backend_host, backend_port, ssl) VALUES ('$domain', '$backend_host', $backend_port, $ssl);"
+    echo ""
     echo "Entry added."
 
     # Regenerate config (so HTTP block is available for Certbot validation)
@@ -167,6 +172,7 @@ delete_entry() {
     list_entries
     echo ""
     read -ep "Enter the ID of the entry to delete: " id
+    echo ""
     if [[ -z "$id" ]]; then
         echo "No ID entered."
         return
