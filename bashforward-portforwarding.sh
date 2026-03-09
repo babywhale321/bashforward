@@ -149,40 +149,47 @@ EOF
 
 # Add a new forwarding rule
 add_forward() {
-    echo "--- Add New Forward ---"
     
     # IP version
     while true; do
+        echo ""
         read -ep "Enter the IP version (v4/v6): " ip_version
         ip_version=$(echo "$ip_version" | tr '[:upper:]' '[:lower:]')
         [[ "$ip_version" == "v4" || "$ip_version" == "v6" ]] && break
+        echo ""
         echo "Invalid IP version. Please enter v4 or v6."
     done
 
     # External port
     while true; do
+        echo ""
         read -ep "Enter the external port (1-65535): " external_port
         [[ $external_port =~ ^[0-9]+$ ]] && \
         [ $external_port -ge 1 -a $external_port -le 65535 ] && break
+        echo ""
         echo "Invalid port. Must be 1-65535."
     done
 
     # Destination IP
     while true; do
+        echo ""
         read -ep "Enter the destination IP ($ip_version): " dest_ip
         if [ "$ip_version" == "v4" ]; then
             validate_ipv4 "$dest_ip" && break
         else
             validate_ipv6 "$dest_ip" && break
         fi
+        echo ""
         echo "Invalid $ip_version address."
     done
 
     # Destination port
     while true; do
+        echo ""
         read -ep "Enter the destination port (1-65535): " dest_port
         [[ $dest_port =~ ^[0-9]+$ ]] && \
         [ $dest_port -ge 1 -a $dest_port -le 65535 ] && break
+        echo ""
         echo "Invalid port. Must be 1-65535."
     done
 
@@ -192,7 +199,7 @@ add_forward() {
     # Regenerate script and apply
     regenerate_script
     apply_rules
-    
+    echo ""
     echo "Forward added successfully."
     
 }
@@ -207,19 +214,21 @@ list_forwards() {
 
 # Delete a forward by ID
 delete_forward() {
-    echo "--- Delete Forward ---"
+    echo ""
     list_forwards
     if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM portforward_entries;") -eq 0 ]; then
         return
     fi
     read -ep "Enter the ID of the forward to delete: " id
     if ! [[ $id =~ ^[0-9]+$ ]]; then
+        echo ""
         echo "Invalid ID."
         
         return
     fi
     # Check if exists
     if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM portforward_entries WHERE id=$id;") -eq 0 ]; then
+        echo ""
         echo "ID not found."
         
         return
@@ -227,21 +236,24 @@ delete_forward() {
     sqlite3 $DB_FILE "DELETE FROM portforward_entries WHERE id=$id;"
     regenerate_script
     apply_rules
+    echo ""
     echo "Forward deleted."
     
 }
 
 # Reset all portforward_entries
 reset_all() {
-    echo "--- Reset All portforward_entries ---"
+    echo ""
     read -ep "Are you sure? This will delete all portforward_entries. (y/n): " confirm
     confirm=$(echo "$confirm" | tr '[:upper:]' '[:lower:]')
     if [[ "$confirm" == "y" || "$confirm" == "yes" ]]; then
         sqlite3 $DB_FILE "DELETE FROM portforward_entries;"
         regenerate_script
         apply_rules
+        echo ""
         echo "All portforward_entries cleared."
     else
+        echo ""
         echo "Cancelled."
     fi
     
