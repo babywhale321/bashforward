@@ -135,7 +135,6 @@ add_entry() {
     # Check if domain already exists
     if sqlite3 "$DB_FILE" "SELECT domain FROM nginx_entries WHERE domain='$domain';" | grep -q "$domain"; then
         echo "Domain $domain already exists in database."
-        echo ""
         return
     fi
 
