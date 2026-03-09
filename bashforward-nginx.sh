@@ -193,10 +193,11 @@ list_entries() {
 # Show menu
 show_menu() {
     echo ""
-    echo -e "========== NGINX Menu =========="
+    echo -e "================= NGINX Menu ================="
     echo ""
-    echo "s) List entries  1) Add entry"
-    echo "2) Delete entry  q) Exit"
+    echo "s) List entries  1) Add entry  2) Delete entry"
+    echo ""
+    echo "q) Exit"
     echo ""
     read -ep "Enter an option: " choice
 }

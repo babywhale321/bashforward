@@ -254,9 +254,11 @@ ensure_systemd_service
 # Manage Port forwarding
 while true; do
     echo ""
-    echo -e "================================== Port Forwarding Menu =================================="
-    echo "s. Show port forwarding rules        1. Add a forwarding rule  2. Delete a forwarding rule"  
-    echo "3. Reset all forwarding rules        q. Exit"
+    echo -e "============================== Port Forwarding Menu =============================="
+    echo "s. Show port forwarding rules  1. Add a forwarding rule  2. Delete a forwarding rule"  
+    echo "3. Reset all forwarding rules"
+    echo ""
+    echo "q. Exit"
     echo ""
     read -ep "Enter an option: " choice
 

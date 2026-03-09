@@ -297,9 +297,10 @@ else
 	# WireGuard menu
     while true; do
         echo ""
-        echo -e "================ Wireguard menu ================"
-        echo "s) List current clients       1) Add a new client"
-        echo "2) Remove an existing client  q) Exit"
+        echo -e "======================== Wireguard Menu ========================"
+        echo "s) List clients  1) Add a new client  2) Remove an existing client"
+        echo ""
+        echo "q) Exit"
         echo ""
         read -ep "Enter an option: " choice
         case "$choice" in
