@@ -298,6 +298,7 @@ else
     while true; do
         echo ""
         echo -e "======================== Wireguard Menu ========================"
+        echo ""
         echo "s) List clients  1) Add a new client  2) Remove an existing client"
         echo ""
         echo "q) Exit"

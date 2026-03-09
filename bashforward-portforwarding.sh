@@ -255,6 +255,7 @@ ensure_systemd_service
 while true; do
     echo ""
     echo -e "============================== Port Forwarding Menu =============================="
+    echo ""
     echo "s. Show port forwarding rules  1. Add a forwarding rule  2. Delete a forwarding rule"  
     echo "3. Reset all forwarding rules"
     echo ""
