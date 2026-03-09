@@ -215,7 +215,8 @@ list_forwards() {
 # Delete a forward by ID
 delete_forward() {
     echo ""
-    list_forwards
+    sqlite3 $DB_FILE -header -column "SELECT id, ip_version, external_port, dest_ip, dest_port FROM portforward_entries ORDER BY id;"
+    echo ""
     if [ $(sqlite3 $DB_FILE "SELECT COUNT(*) FROM portforward_entries;") -eq 0 ]; then
         return
     fi
