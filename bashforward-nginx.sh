@@ -8,6 +8,7 @@
 # Configuration
 DB_FILE="bashforward.db"
 NGINX_CONF_DIR="/etc/nginx/conf.d"
+NGINX_DEFAULT_CONF="/etc/nginx/sites-enabled/default"
 GENERATED_CONF="${NGINX_CONF_DIR}/reverse-proxy-generated.conf"
 NGINX_SERVICE="nginx"
 WEBROOT="/var/www/html"  # Common webroot for Certbot challenges
@@ -19,6 +20,13 @@ ensure_webroot() {
     fi
     # Set basic permissions
     chmod 755 "$WEBROOT"
+}
+
+# Remove the default config if it exists
+remove_nginx_default_config() {
+    if [[ -f "$NGINX_DEFAULT_CONF" ]]; then
+        rm "$NGINX_DEFAULT_CONF"
+    fi
 }
 
 # Regenerate Nginx configuration from database
@@ -219,6 +227,9 @@ main() {
 
     # Ensure webroot exists
     ensure_webroot
+    
+    # Remove the default config if it exists
+    remove_nginx_default_config
 
     # Generate initial config if not exists (empty file)
     if [[ ! -f "$GENERATED_CONF" ]]; then
